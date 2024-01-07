@@ -60,11 +60,28 @@ export class GameServer extends BaseSlotGame {
 
             cascade.cascade.type = "cascade"; 
             cascade.cascade.id = cascadeId++;
-            Grid.MarkOffsets( cascade.stops, this.updateOffsetsForGrid( cascade.cascade.offsets, prevState.finalGrid.length-1 ) );
+            Grid.MarkOffsets( cascade.stops, this.updateOffsetsForCascade( cascade.cascade.offsets, prevState.finalGrid.length ) );
             cascade.stops = Grid.MoveMarkedOffsetsDown( cascade.stops);
 
-            const initialStops :number[] = Grid.FirstStopFromStops( prevState.stops) ;
-            CreateStops.StandardStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
+            const stopsLastReel :number[] = cascade.stops[ cascade.stops.length-1 ];
+            const newStops: number[] = [];
+            for( let i=0; i<stopsLastReel.length; i++ ) {
+                if ( stopsLastReel[i] !== -1 ) {
+                    newStops.push( stopsLastReel[i] );
+                }
+            }
+            for( let i=0; i<stopsLastReel.length; i++ ) {
+                if ( stopsLastReel[i] === -1 ) {
+                    newStops.push( stopsLastReel[i] );
+                }
+            }
+            cascade.stops[ cascade.stops.length-1 ] = newStops;
+            const initialStops :number[] = Grid.FirstStopFromStops( prevState.stops);
+            
+            cascade.stops = CreateStops.StandardStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
+            const reversedStops = CreateStops.StandardReverseStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
+            cascade.stops[ cascade.stops.length-1 ] = reversedStops[ reversedStops.length-1 ]
+            
             cascade.initialGrid = CreateGrid.StandardGrid( this.math.paidReels[0].reels, cascade.stops);
             cascade.finalGrid = this.replaceRandomSymbol( cascade.initialGrid);
             cascade.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(cascade.finalGrid), this.state.gameStatus.stakeValue, 1 );
@@ -129,7 +146,7 @@ export class GameServer extends BaseSlotGame {
 
             cascade.cascade.type = "cascade"; 
             cascade.cascade.id = cascadeId++;
-            Grid.MarkOffsets( cascade.stops, this.updateOffsetsForGrid( cascade.cascade.offsets, prevState.finalGrid.length-1 ) );
+            Grid.MarkOffsets( cascade.stops, this.updateOffsetsForCascade( cascade.cascade.offsets, prevState.finalGrid.length ) );
             cascade.stops = Grid.MoveMarkedOffsetsDown( cascade.stops);
             (this.state as GoddessOfFireState).fsMultiplier++;
             cascade.multiplier = (this.state as GoddessOfFireState).fsMultiplier;
@@ -191,20 +208,41 @@ export class GameServer extends BaseSlotGame {
         
         const lastreel :number[] = grid[grid.length-1];
         for(let i=0; i<lastreel.length ; i++ ) {
-            gridForWin[i+1].push( lastreel[i] );
+            gridForWin[i+1].unshift( lastreel[i] );
         }
 
-        return grid; 
+        gridForWin[0].unshift(-1);
+        gridForWin[ gridForWin.length-1].unshift(-1);
+
+        return gridForWin; 
     }
 
-    protected updateOffsetsForGrid( offsets:number[], length:number) :number[] {
-        const newOffsets :number[] = Cloner.CloneObject( offsets);
-        newOffsets.forEach( (offset:number) => {
-            const col :number = offset % length;
-            const row :number = Math.floor(offset/length);
+    protected updateOffsetsForCascade( offsets:number[], finallength:number) :number[] {
+        
+        const originalLength = finallength-1; 
+        const decoded :{ col:number, row:number}[] = [];
+        
+        offsets.forEach( (offset:number) => {
+            const col :number = offset % originalLength;
+            const row :number = Math.floor(offset/originalLength);
+            decoded.push( {col, row});
         });
 
-        return offsets;
+        decoded.forEach( d => {
+            if (d.row === 0) {
+                d.row = d.col-1;
+                d.col = finallength-1;
+            } else {
+                d.row--;
+            }
+        }) 
+
+        const encode:number[] = [];
+        decoded.forEach( d => {
+            encode.push( (finallength * d.row) + d.col );
+        })
+
+        return encode;
     }
 
     protected replaceRandomSymbol( grid :number[][]) :number[][] {
