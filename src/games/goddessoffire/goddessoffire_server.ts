@@ -27,7 +27,7 @@ import { ConfigResponseV3Model } from "../../libs/platform/slots/responses_v3";
 export class GameServer extends BaseSlotGame {
 
     constructor(){
-        super("GoddessOfFire", "0.1");
+        super("GoddessOfFire", "0.2");
         this.math = new GoddessOfFireMath();
     }
 

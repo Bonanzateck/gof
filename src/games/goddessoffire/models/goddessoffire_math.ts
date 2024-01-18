@@ -30,8 +30,7 @@ export class GoddessOfFireMath extends PlatformMath {
                 { name:"LV4", key:"LOW", id:8, payout:[ this.bd(0), this.bd(0), this.bd(0), this.bd(0.15), this.bd(0.25), this.bd(0.5), this.bd(1)] },
                 { name:"LV5", key:"LOW", id:9, payout:[ this.bd(0), this.bd(0), this.bd(0), this.bd(0.15), this.bd(0.25), this.bd(0.50), this.bd(0.90)] },
                 { name:"LV6", key:"LOW", id:10, payout:[ this.bd(0), this.bd(0), this.bd(0), this.bd(0.1), this.bd(0.2), this.bd(0.4), this.bd(0.8)] },
-                { name:"Scatter", key:"SCATTER", id:11, payout:[] },
-                { name:"Random", key:"RANDSYM", id:12, payout:[] }
+                { name:"Scatter", key:"SCATTER", id:11, payout:[] }
             ]
         };
 
