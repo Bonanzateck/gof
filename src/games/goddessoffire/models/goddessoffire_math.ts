@@ -11,11 +11,12 @@ export class GoddessOfFireMath extends PlatformMath {
             [9, 4, 5],
             [9, 1, 10],
             [5, 10, 2],
-            [11, 8, 4]
+            [11, 8, 4],
+            [9, 1, 10]
         ];
         this.info = {
             betMultiplier:new BigNumber(20),
-            gridLayout:[],
+            gridLayout:[0, 0, 0, 0, 0, 0],
             wildSymbols:[0],
             payLines:[],
             symbols:[
@@ -100,12 +101,12 @@ export class GoddessOfFireMath extends PlatformMath {
         }]
 
         this.actions["FreespinTrigger"] = { triggers:["freespin"], id:"freespin", spins:12 };
-        this.actions["FreespinReTrigger3"] = { triggers:["freespin"], id:"retrigger", spins:5 };
-        this.actions["FreespinReTrigger4"] = { triggers:["freespin"], id:"retrigger", spins:10 };
+        this.actions["FreespinReTrigger3"] = { triggers:["retrigger"], id:"retrigger", spins:5 };
+        this.actions["FreespinReTrigger4"] = { triggers:["retrigger"], id:"retrigger", spins:10 };
         
         this.conditions["FreespinTrigger"] = { id:"freespin", symbol:11, minCount:4 };
-        this.conditions["FreespinReTrigger3"] = { id:"freespin", symbol:11, oak:[3] };
-        this.conditions["FreespinReTrigger4"] = { id:"freespin", symbol:11, oak:[4] };
+        this.conditions["FreespinReTrigger3"] = { id:"retrigger", symbol:11, oak:[3] };
+        this.conditions["FreespinReTrigger4"] = { id:"retrigger", symbol:11, oak:[4] };
 
         this.collection["BaseGameLayout"] = [
             {   id : "r1",

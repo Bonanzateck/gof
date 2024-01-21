@@ -27,7 +27,7 @@ import { ConfigResponseV3Model } from "../../libs/platform/slots/responses_v3";
 export class GameServer extends BaseSlotGame {
 
     constructor(){
-        super("GoddessOfFire", "0.2");
+        super("GoddessOfFire", "0.3");
         this.math = new GoddessOfFireMath();
     }
 
@@ -80,7 +80,7 @@ export class GameServer extends BaseSlotGame {
             
             cascade.stops = CreateStops.StandardStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
             const reversedStops = CreateStops.StandardReverseStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
-            cascade.stops[ cascade.stops.length-1 ] = reversedStops[ reversedStops.length-1 ]
+            cascade.stops[ cascade.stops.length-1 ] = reversedStops[ reversedStops.length-1 ];
             
             cascade.initialGrid = CreateGrid.StandardGrid( this.math.paidReels[0].reels, cascade.stops);
             cascade.finalGrid = this.replaceRandomSymbol( cascade.initialGrid);
@@ -152,7 +152,10 @@ export class GameServer extends BaseSlotGame {
             cascade.multiplier = (this.state as GoddessOfFireState).fsMultiplier;
 
             const initialStops :number[] = Grid.FirstStopFromStops( prevState.stops) ;
-            CreateStops.StandardStopsForNulls( initialStops, this.math.freeReels[0].reels , cascade.stops);
+            cascade.stops = CreateStops.StandardStopsForNulls( initialStops, this.math.freeReels[0].reels , cascade.stops);
+            const reversedStops = CreateStops.StandardReverseStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
+            cascade.stops[ cascade.stops.length-1 ] = reversedStops[ reversedStops.length-1 ];
+
             cascade.initialGrid = CreateGrid.StandardGrid( this.math.freeReels[0].reels, cascade.stops);
             cascade.finalGrid = this.replaceRandomSymbol( cascade.initialGrid);
             cascade.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(cascade.finalGrid), this.state.gameStatus.stakeValue, state.multiplier );
