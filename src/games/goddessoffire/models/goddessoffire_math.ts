@@ -18,6 +18,7 @@ export class GoddessOfFireMath extends PlatformMath {
             betMultiplier:new BigNumber(20),
             gridLayout:[0, 0, 0, 0, 0, 0],
             wildSymbols:[0],
+            skipEval:[],
             payLines:[],
             symbols:[
                 { name:"Wild", key:"Wild", id:0, payout:[] },

@@ -21,13 +21,14 @@ import { ScatterSymbolCount } from "../../libs/engine/slots/conditions/scatter_s
 import { Triggerer } from "../../libs/engine/slots/features/triggerer";
 import { UpdateFeature } from "../../libs/engine/slots/features/update_feature";
 import { ConfigResponseV3Model } from "../../libs/platform/slots/responses_v3";
+import { SlotConditionMath } from "../../libs/engine/slots/models/slot_math_model";
 
 
 
 export class GameServer extends BaseSlotGame {
 
     constructor(){
-        super("GoddessOfFire", "0.3");
+        super("GoddessOfFire", "0.4");
         this.math = new GoddessOfFireMath();
     }
 
@@ -42,7 +43,7 @@ export class GameServer extends BaseSlotGame {
         state.initialGrid = CreateGrid.StandardGrid( selectedSet.reels, state.stops);
         state.finalGrid = this.replaceRandomSymbol( state.initialGrid);
 
-        state.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(state.finalGrid), this.state.gameStatus.stakeValue, 1 );
+        state.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(state.finalGrid), this.state.gameStatus.totalBet, 1 );
         state.win = CalculateWins.AddPays( state.wins );
 
         this.state.paidSpin = [state];
@@ -54,16 +55,18 @@ export class GameServer extends BaseSlotGame {
             const prevState :SlotSpinState = this.state.paidSpin[ this.state.paidSpin.length-1 ];
 
             const cascade :SlotSpinState = new SlotSpinState();
-            cascade.stops = Cloner.CloneGrid( prevState.stops );
+            cascade.stops = [];//Cloner.CloneGrid( prevState.stops );
+            cascade.initialGrid = Cloner.CloneGrid( prevState.finalGrid );
             cascade.cascade = new CascadeState();
             cascade.cascade.offsets = Symbols.UniqueWinningSymbols( prevState.wins);
+            cascade.reelId = "b3";
 
             cascade.cascade.type = "cascade"; 
             cascade.cascade.id = cascadeId++;
-            Grid.MarkOffsets( cascade.stops, this.updateOffsetsForCascade( cascade.cascade.offsets, prevState.finalGrid.length ) );
-            cascade.stops = Grid.MoveMarkedOffsetsDown( cascade.stops);
+            Grid.MarkOffsets( cascade.initialGrid, this.updateOffsetsForCascade( cascade.cascade.offsets, prevState.initialGrid.length ) );
+            cascade.initialGrid = Grid.MoveMarkedOffsetsDown( cascade.initialGrid);
 
-            const stopsLastReel :number[] = cascade.stops[ cascade.stops.length-1 ];
+            const stopsLastReel :number[] = cascade.initialGrid[ cascade.initialGrid.length-1 ];
             const newStops: number[] = [];
             for( let i=0; i<stopsLastReel.length; i++ ) {
                 if ( stopsLastReel[i] !== -1 ) {
@@ -75,16 +78,16 @@ export class GameServer extends BaseSlotGame {
                     newStops.push( stopsLastReel[i] );
                 }
             }
-            cascade.stops[ cascade.stops.length-1 ] = newStops;
-            const initialStops :number[] = Grid.FirstStopFromStops( prevState.stops);
+            cascade.initialGrid[ cascade.initialGrid.length-1 ] = newStops;
+            //const initialStops :number[] = Grid.FirstStopFromStops( prevState.stops);
             
-            cascade.stops = CreateStops.StandardStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
-            const reversedStops = CreateStops.StandardReverseStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
-            cascade.stops[ cascade.stops.length-1 ] = reversedStops[ reversedStops.length-1 ];
+            cascade.stops = CreateStops.StandardStops( this.rng, this.math.reSpinReels[0].reels, layout );
+            //const reversedStops = CreateStops.StandardReverseStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
+            //cascade.stops[ cascade.stops.length-1 ] = reversedStops[ reversedStops.length-1 ];
             
-            cascade.initialGrid = CreateGrid.StandardGrid( this.math.paidReels[0].reels, cascade.stops);
+            cascade.initialGrid = CreateGrid.StandardGridForNonNull(cascade.initialGrid, this.math.reSpinReels[0].reels, cascade.stops);
             cascade.finalGrid = this.replaceRandomSymbol( cascade.initialGrid);
-            cascade.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(cascade.finalGrid), this.state.gameStatus.stakeValue, 1 );
+            cascade.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(cascade.finalGrid), this.state.gameStatus.totalBet, 1 );
             cascade.win = CalculateWins.AddPays( cascade.wins );
             cascade.cascade.win = totalWin.plus( cascade.win);
 
@@ -95,10 +98,16 @@ export class GameServer extends BaseSlotGame {
         }
 
         const lastState :SlotSpinState = this.state.paidSpin[ this.state.paidSpin.length-1 ];
-        const freespins:SlotFeaturesState = ScatterSymbolCount.checkCondition( this.math.conditions["FreespinTrigger"], lastState );
+        const fsCondition: SlotConditionMath = this.math.conditions["FreespinTrigger"];
+        const freespins:SlotFeaturesState = ScatterSymbolCount.checkCondition( fsCondition, lastState );
         if (freespins.isActive) {
             Triggerer.UpdateFeature(this.state, freespins, this.math.actions["FreespinTrigger"]);
             Triggerer.UpdateNextAction( this.state, this.math.actions["FreespinTrigger"]); 
+
+            const extra = freespins.offsets.length - fsCondition.minCount; 
+            freespins.count += extra*5;  
+            this.state.freespin.total = freespins.count; 
+            this.state.freespin.left = freespins.count; 
         } 
         state.features = [ freespins];
 
@@ -125,14 +134,19 @@ export class GameServer extends BaseSlotGame {
         state.finalGrid = this.replaceRandomSymbol( state.initialGrid);
         state.multiplier = (this.state as GoddessOfFireState).fsMultiplier;
 
-        state.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(state.finalGrid), this.state.gameStatus.stakeValue, state.multiplier );
-        state.win = CalculateWins.AddPays( state.wins ).multipliedBy( state.multiplier);
+        state.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(state.finalGrid), this.state.gameStatus.totalBet, state.multiplier );
+        state.win = CalculateWins.AddPays( state.wins );
 
         this.state.freespins[fsIndex] = [state];
 
         let win :BigNumber = BigNumber(state.win);
         let totalWin :BigNumber = BigNumber( state.win);
         let cascadeId: number = 0; 
+
+        if (win.isGreaterThan( BigNumber(0) )){
+            (this.state as GoddessOfFireState).fsMultiplier++;
+        }
+
         while ( win.isGreaterThan( BigNumber(0) )){
             if ( !this.state.freespins[fsIndex] ) {
                 console.log( fsIndex) 
@@ -140,30 +154,51 @@ export class GameServer extends BaseSlotGame {
             const prevState :SlotSpinState = this.state.freespins[fsIndex][ this.state.freespins[fsIndex].length-1 ];
 
             const cascade :SlotSpinState = new SlotSpinState();
-            cascade.stops = Cloner.CloneGrid( prevState.stops );
+            cascade.reelId = "f3";
+            cascade.stops = [] //Cloner.CloneGrid( prevState.stops );
+            cascade.initialGrid = Cloner.CloneGrid( prevState.finalGrid );
             cascade.cascade = new CascadeState();
             cascade.cascade.offsets = Symbols.UniqueWinningSymbols( prevState.wins);
 
             cascade.cascade.type = "cascade"; 
             cascade.cascade.id = cascadeId++;
-            Grid.MarkOffsets( cascade.stops, this.updateOffsetsForCascade( cascade.cascade.offsets, prevState.finalGrid.length ) );
-            cascade.stops = Grid.MoveMarkedOffsetsDown( cascade.stops);
-            (this.state as GoddessOfFireState).fsMultiplier++;
+            Grid.MarkOffsets( cascade.initialGrid, this.updateOffsetsForCascade( cascade.cascade.offsets, prevState.finalGrid.length ) );
+            cascade.initialGrid = Grid.MoveMarkedOffsetsDown( cascade.initialGrid);
             cascade.multiplier = (this.state as GoddessOfFireState).fsMultiplier;
 
-            const initialStops :number[] = Grid.FirstStopFromStops( prevState.stops) ;
-            cascade.stops = CreateStops.StandardStopsForNulls( initialStops, this.math.freeReels[0].reels , cascade.stops);
-            const reversedStops = CreateStops.StandardReverseStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
-            cascade.stops[ cascade.stops.length-1 ] = reversedStops[ reversedStops.length-1 ];
+            const stopsLastReel :number[] = cascade.initialGrid[ cascade.initialGrid.length-1 ];
+            const newStops: number[] = [];
+            for( let i=0; i<stopsLastReel.length; i++ ) {
+                if ( stopsLastReel[i] !== -1 ) {
+                    newStops.push( stopsLastReel[i] );
+                }
+            }
+            for( let i=0; i<stopsLastReel.length; i++ ) {
+                if ( stopsLastReel[i] === -1 ) {
+                    newStops.push( stopsLastReel[i] );
+                }
+            }
+            cascade.initialGrid[ cascade.initialGrid.length-1 ] = newStops;
 
-            cascade.initialGrid = CreateGrid.StandardGrid( this.math.freeReels[0].reels, cascade.stops);
+            //const initialStops :number[] = Grid.FirstStopFromStops( prevState.stops) ;
+            //cascade.initialGrid = CreateStops.StandardStopsForNulls( initialStops, this.math.freeReSpinReels[0].reels , cascade.stops);
+            //const reversedStops = CreateStops.StandardReverseStopsForNulls( initialStops, this.math.paidReels[0].reels , cascade.stops);
+            //cascade.stops[ cascade.stops.length-1 ] = reversedStops[ reversedStops.length-1 ];
+
+            cascade.stops = CreateStops.StandardStops( this.rng, this.math.freeReSpinReels[0].reels, layout );
+            cascade.initialGrid = CreateGrid.StandardGridForNonNull( cascade.initialGrid, this.math.freeReSpinReels[0].reels, cascade.stops);
+
             cascade.finalGrid = this.replaceRandomSymbol( cascade.initialGrid);
-            cascade.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(cascade.finalGrid), this.state.gameStatus.stakeValue, state.multiplier );
-            cascade.win = CalculateWins.AddPays( cascade.wins ).multipliedBy( cascade.multiplier);;
+            cascade.wins = EvaluateWins.WaysWins( this.math.info, this.updateGridToProcessWin(cascade.finalGrid), this.state.gameStatus.totalBet, cascade.multiplier );
+            cascade.win = CalculateWins.AddPays( cascade.wins );
             cascade.cascade.win = totalWin.plus( cascade.win);
 
             totalWin = totalWin.plus( cascade.win);
             win = BigNumber(cascade.win);
+
+            if (win.isGreaterThan( BigNumber(0) )){
+                (this.state as GoddessOfFireState).fsMultiplier++;
+            }
             
             this.state.freespins[fsIndex].push(cascade);
         }
@@ -249,29 +284,24 @@ export class GameServer extends BaseSlotGame {
     }
 
     protected replaceRandomSymbol( grid :number[][]) :number[][] {
+
         let newGrid = Cloner.CloneGrid( grid);
-        const reel1Offsets = Grid.FindScatterOffsetsInReels( 12, [0], newGrid);
+        const reel1Offsets = Grid.FindScatterOffsets( 12, newGrid)
         if (reel1Offsets.length > 0) {
             const randomSymbols = [];
-            newGrid[1].forEach( symbol => {
-                if ( symbol !== 11 && symbol !== 12 ) {
+            newGrid[0].forEach( symbol => {
+                if ( symbol !== 11 && symbol !== 0 ) {
                     randomSymbols.push( { weight : 1, symbol : symbol } );
                 }
             })
+            if ( randomSymbols.length == 0 ) {
+                const symbols = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+                symbols.forEach( symbol => {
+                    randomSymbols.push( { weight : 1, symbol : symbol })
+                })
+            }
             const symbol :any = RandomHelper.GetRandomFromList( this.rng, randomSymbols);
             newGrid = Grid.ReplaceSymbolsInOffsets( reel1Offsets, newGrid, symbol.symbol);
-        }
-
-        const reel23Offsets = Grid.FindScatterOffsetsInReels( 12, [1, 2, 3], newGrid);
-        if (reel23Offsets.length > 0) {
-            const randomSymbols = [];
-            newGrid[0].forEach( symbol => {
-                if ( symbol !== 11 && symbol !== 12 ) {
-                    randomSymbols.push( { weight : 1, symbol : symbol } );
-                }
-            })
-            const symbol :any = RandomHelper.GetRandomFromList( this.rng, randomSymbols);
-            newGrid = Grid.ReplaceSymbolsInOffsets( reel23Offsets, newGrid, symbol.symbol);
         }
 
         return newGrid;
